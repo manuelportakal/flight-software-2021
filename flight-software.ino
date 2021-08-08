@@ -5,6 +5,7 @@
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 #include <Wire.h>
+#include <Adafruit_BMP085.h>
 
 //start - wifi config
 const char *ssid = "TurkTelekom_T5AA1";
@@ -49,6 +50,10 @@ const char *serverName = "http://192.168.1.106:5000/Home/GetSensor";
 Adafruit_MPU6050 mpu;
 //end - mpu650
 
+//start - bmp180
+Adafruit_BMP085 bmp;
+//end - bmp180
+
 //start - buzzer
 const int BUZZER_PIN = 21;
 //end - buzzer
@@ -58,6 +63,7 @@ void ReadEEPROM(void);
 void initWifi(void);
 void initMpu6050(void);
 void initBuzzer(void);
+void initBmp180(void);
 
 void initWifi() {
   Serial.println("Connecting to Wifi");
@@ -93,6 +99,18 @@ void initMpu6050() {
   mpu.setFilterBandwidth(MPU6050_BAND_5_HZ);
 }
 
+void initBmp180() {
+  Serial.println("Connecting to Bmp180");
+
+  if (!bmp.begin()) {
+    Serial.println("Failed to find Bmp180 chip");
+    while (1) {
+      delay(10);
+    }
+  }
+  Serial.println("Bmp180 connected!");
+}
+
 void initBuzzer(){
   pinMode(BUZZER_PIN, OUTPUT);
 }
@@ -103,6 +121,7 @@ void setup() {
   initWifi();
   initMpu6050();
   initBuzzer();
+  initBmp180();
 
   EEPROM.begin(512);
 }
@@ -368,17 +387,20 @@ void GetMpu6050() {
 }
 
 void GetBmp180() {
-  package.pressure = random(0, 1000) / 100.0;
+  //degC
+  //package.temperature = bmp.readTemperature();
+  
+  //Pa
+  package.pressure = bmp.readPressure();
+    
+  //meters
+  package.altitude = bmp.readAltitude();
 
-  //irtifa sabitleme pasifken calisir
-  if (status != 3) {
-    if (package.altitude < 700 && status == 0)
-      package.altitude += 100;
-    else if (package.altitude >= 70)
-      package.altitude -= 70;
-    else
-      package.altitude = 0;
-  }
+  //read altitude with pressure parameter
+  //package.altitude = bmp.readAltitude(101550);
+
+  //Pa
+  //Serial.print(bmp.readSealevelPressure());
 }
 
 void startBuzzer(){
