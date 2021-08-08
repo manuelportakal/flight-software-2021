@@ -58,12 +58,17 @@ Adafruit_BMP085 bmp;
 const int BUZZER_PIN = 21;
 //end - buzzer
 
+//start - max471
+const int MAX471_PIN = 34;
+//end - max471
+
 //functions
 void ReadEEPROM(void);
 void initWifi(void);
 void initMpu6050(void);
 void initBuzzer(void);
 void initBmp180(void);
+void initMax471(void);
 
 void initWifi() {
   Serial.println("Connecting to Wifi");
@@ -115,6 +120,10 @@ void initBuzzer(){
   pinMode(BUZZER_PIN, OUTPUT);
 }
 
+void initMax471(){
+  pinMode(MAX471_PIN, INPUT);
+}
+
 void setup() {
   Serial.begin(115200);
   delay(100);
@@ -122,6 +131,7 @@ void setup() {
   initMpu6050();
   initBuzzer();
   initBmp180();
+  initMax471();
 
   EEPROM.begin(512);
 }
@@ -348,7 +358,9 @@ void SendData() {
 }
 
 void GetMax471() {
-  package.battery_voltage = random(0, 1000) / 100.0;
+  int raw_value = analogRead(MAX471_PIN); 
+  float current = (raw_value * 5.0 )/ 1024.0;
+  package.battery_voltage = current;
 }
 
 void GetGPS() {
