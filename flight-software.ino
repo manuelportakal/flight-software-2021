@@ -81,6 +81,7 @@ void initMpu6050(void);
 void initBuzzer(void);
 void initBmp180(void);
 void initMax471(void);
+void initServo(void);
 
 void initWifi() {
   Serial.println("Connecting to Wifi");
@@ -148,7 +149,7 @@ void initDht11(){
   Serial.println("Dht11 connected!");
 }
 
-void initDht11(){
+void initServo(){
   ESP32PWM::allocateTimer(0);
 	ESP32PWM::allocateTimer(1);
 	ESP32PWM::allocateTimer(2);
