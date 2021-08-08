@@ -49,10 +49,15 @@ const char *serverName = "http://192.168.1.106:5000/Home/GetSensor";
 Adafruit_MPU6050 mpu;
 //end - mpu650
 
+//start - buzzer
+const int BUZZER_PIN = 21;
+//end - buzzer
+
 //functions
 void ReadEEPROM(void);
 void initWifi(void);
 void initMpu6050(void);
+void initBuzzer(void);
 
 void initWifi() {
   Serial.println("Connecting to Wifi");
@@ -88,11 +93,16 @@ void initMpu6050() {
   mpu.setFilterBandwidth(MPU6050_BAND_5_HZ);
 }
 
+void initBuzzer(){
+  pinMode(BUZZER_PIN, OUTPUT);
+}
+
 void setup() {
   Serial.begin(115200);
   delay(100);
   initWifi();
   initMpu6050();
+  initBuzzer();
 
   EEPROM.begin(512);
 }
@@ -210,7 +220,7 @@ void SatelliteControl() {
       status = 5;
       t1 = millis();
       EEPROM.put(adres_t1_sayaci, t1);
-      //startBuzzer();
+      startBuzzer();
       //inis gerceklesti;
     }
 
@@ -369,4 +379,8 @@ void GetBmp180() {
     else
       package.altitude = 0;
   }
+}
+
+void startBuzzer(){
+  digitalWrite(BUZZER_PIN, HIGH);
 }
