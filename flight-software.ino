@@ -7,6 +7,7 @@
 #include <Wire.h>
 #include <Adafruit_BMP085.h>
 #include "DHT.h"
+#include <ESP32Servo.h>
 
 //start - wifi config
 const char *ssid = "TurkTelekom_T5AA1";
@@ -67,6 +68,11 @@ const int MAX471_PIN = 34;
 const int DHT11_PIN = 13;
 DHT dht(DHT11_PIN, DHT11);
 //end - dht11
+
+//start - servo
+const int SERVO_PIN = 18;
+Servo myservo; 
+//end - servo
 
 //functions
 void ReadEEPROM(void);
@@ -142,6 +148,15 @@ void initDht11(){
   Serial.println("Dht11 connected!");
 }
 
+void initDht11(){
+  ESP32PWM::allocateTimer(0);
+	ESP32PWM::allocateTimer(1);
+	ESP32PWM::allocateTimer(2);
+	ESP32PWM::allocateTimer(3);
+	myservo.setPeriodHertz(50);
+	myservo.attach(servoPin, 500, 2400);
+}
+
 void setup() {
   Serial.begin(115200);
   delay(100);
@@ -151,6 +166,7 @@ void setup() {
   initBmp180();
   initMax471();
   initDht11();
+  initServo();
 
   EEPROM.begin(512);
 }
@@ -441,4 +457,8 @@ void GetBmp180() {
 
 void startBuzzer(){
   digitalWrite(BUZZER_PIN, HIGH);
+}
+
+void startSeperation(){
+  myservo.write(180);
 }
