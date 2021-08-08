@@ -6,6 +6,7 @@
 #include <Adafruit_Sensor.h>
 #include <Wire.h>
 #include <Adafruit_BMP085.h>
+#include "DHT.h"
 
 //start - wifi config
 const char *ssid = "TurkTelekom_T5AA1";
@@ -61,6 +62,11 @@ const int BUZZER_PIN = 21;
 //start - max471
 const int MAX471_PIN = 34;
 //end - max471
+
+//start - dht11
+const int DHT11_PIN = 13;
+DHT dht(DHT11_PIN, DHT11);
+//end - dht11
 
 //functions
 void ReadEEPROM(void);
@@ -124,6 +130,18 @@ void initMax471(){
   pinMode(MAX471_PIN, INPUT);
 }
 
+void initDht11(){
+  Serial.println("Connecting to Dht11");
+
+  if (!dht.begin()) {
+    Serial.println("Failed to find Dht11 chip");
+    while (1) {
+      delay(10);
+    }
+  }
+  Serial.println("Dht11 connected!");
+}
+
 void setup() {
   Serial.begin(115200);
   delay(100);
@@ -132,6 +150,7 @@ void setup() {
   initBuzzer();
   initBmp180();
   initMax471();
+  initDht11();
 
   EEPROM.begin(512);
 }
@@ -373,7 +392,12 @@ void GetGPS() {
 }
 
 void GetDHT11() {
-  package.temperature = random(2000, 3000) / 100.0;
+  //degC
+  float temperature = dht.readTemperature();
+
+  if(!isnan(temperature)){
+    package.temperature = temperature;
+  }
 }
 
 void GetMpu6050() {
