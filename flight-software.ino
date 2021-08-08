@@ -2,6 +2,9 @@
 #include <WiFi.h>
 #include <ArduinoJson.h>
 #include <EEPROM.h>
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+#include <Wire.h>
 
 //start - wifi config
 const char *ssid = "TurkTelekom_T5AA1";
@@ -42,12 +45,17 @@ short int status, restart_flag;
 
 const char *serverName = "http://192.168.1.106:5000/Home/GetSensor";
 
+//start - mpu650
+Adafruit_MPU6050 mpu;
+//end - mpu650
+
 //functions
 void ReadEEPROM(void);
 void initWifi(void);
+void initMpu6050(void);
 
 void initWifi() {
-  Serial.println("Connecting");
+  Serial.println("Connecting to Wifi");
 
   WiFi.disconnect();
   WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS);
@@ -64,10 +72,27 @@ void initWifi() {
   Serial.println(WiFi.localIP());
 }
 
+void initMpu6050() {
+  Serial.println("Connecting to MPU6050");
+
+  if (!mpu.begin()) {
+    Serial.println("Failed to find MPU6050 chip");
+    while (1) {
+      delay(10);
+    }
+  }
+  Serial.println("MPU6050 connected!");
+
+  mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+  mpu.setGyroRange(MPU6050_RANGE_500_DEG);
+  mpu.setFilterBandwidth(MPU6050_BAND_5_HZ);
+}
+
 void setup() {
   Serial.begin(115200);
   delay(100);
   initWifi();
+  initMpu6050();
 
   EEPROM.begin(512);
 }
@@ -140,7 +165,7 @@ void SatelliteControl() {
     //otonom ayrilma gerceklesti;
   }
 
-  else if (package.altitude <= 410 && status == 2) {
+  else if (package.altitude <= 410 && package.altitude > 250 && status == 2) {
     //startMotors();
   }
 
@@ -282,6 +307,7 @@ void SendData() {
     String httpRequestData;
     serializeJson(readings, httpRequestData);
     Serial.println(httpRequestData);
+    Serial.print(",");
 
     //int httpResponseCode = http.POST(httpRequestData);
     //Serial.println("HTTP Response code: " + httpResponseCode);
@@ -310,10 +336,25 @@ void GetDHT11() {
 }
 
 void GetMpu6050() {
-  package.pitch = random(0, 36000) / 100.0;
-  package.roll = random(0, 36000) / 100.0;
-  package.yaw = random(0, 36000) / 100.0;
-  package.acceleration = random(500, 1000) / 100.0;
+  // package.pitch = random(0, 36000) / 100.0;
+  // package.roll = random(0, 36000) / 100.0;
+  // package.yaw = random(0, 36000) / 100.0;
+  // package.acceleration = random(500, 1000) / 100.0;
+
+
+  sensors_event_t a, g, temp;
+  mpu.getEvent(&a, &g, &temp);
+
+  //rad/s
+  package.pitch = g.gyro.x;
+  package.roll = g.gyro.y;
+  package.yaw = g.gyro.z;
+
+  //m/s^2
+  package.acceleration = a.acceleration.y;
+
+  //degC
+  //package.temperature = temp.temperature;
 }
 
 void GetBmp180() {
