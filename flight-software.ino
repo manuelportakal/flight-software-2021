@@ -6,8 +6,10 @@
 #include <Adafruit_Sensor.h>
 #include <Wire.h>
 #include <Adafruit_BMP085.h>
-#include "DHT.h"
+#include <DHT.h>
 #include <ESP32Servo.h>
+#include <TinyGPS++.h>
+#include <SoftwareSerial.h>
 
 //start - wifi config
 const char *ssid = "TurkTelekom_T5AA1";
@@ -74,6 +76,13 @@ const int SERVO_PIN = 18;
 Servo myservo; 
 //end - servo
 
+//start - gps
+const int RXPin = 16, TXPin = 17;
+const uint32_t GPSBaud = 9600;
+TinyGPSPlus gps;
+SoftwareSerial SerialGPS(RXPin, TXPin);
+//end - gps
+
 //functions
 void ReadEEPROM(void);
 void initWifi(void);
@@ -82,6 +91,7 @@ void initBuzzer(void);
 void initBmp180(void);
 void initMax471(void);
 void initServo(void);
+void initGps(void);
 
 void initWifi() {
   Serial.println("Connecting to Wifi");
@@ -140,12 +150,7 @@ void initMax471(){
 void initDht11(){
   Serial.println("Connecting to Dht11");
 
-  if (!dht.begin()) {
-    Serial.println("Failed to find Dht11 chip");
-    while (1) {
-      delay(10);
-    }
-  }
+  dht.begin();
   Serial.println("Dht11 connected!");
 }
 
@@ -155,7 +160,22 @@ void initServo(){
 	ESP32PWM::allocateTimer(2);
 	ESP32PWM::allocateTimer(3);
 	myservo.setPeriodHertz(50);
-	myservo.attach(servoPin, 500, 2400);
+	myservo.attach(SERVO_PIN, 500, 2400);
+}
+
+void initGps(){
+  Serial.println("Connecting to Gps");
+
+  SerialGPS.begin(GPSBaud);
+  Serial.println("Gps connected!");
+
+  Serial.println("Connecting to satellites");
+
+  while (gps.satellites.value() < 1) {
+    delay(100);
+    Serial.print(".");
+  }
+  Serial.println("Satellite connected!");
 }
 
 void setup() {
@@ -168,6 +188,7 @@ void setup() {
   initMax471();
   initDht11();
   initServo();
+  initGps();
 
   EEPROM.begin(512);
 }
@@ -400,12 +421,18 @@ void GetMax471() {
 }
 
 void GetGPS() {
-  package.gps_latitude = random(3600, 4200) / 100.0;
-  package.gps_longitude = random(2600, 4500) / 100.0;
-  package.gps_altitude = random(0, 70000) / 100.0;
-  //package.gps_latitude = 40.904798;
-  //package.gps_longitude = 31.181144;
-  //package.gps_altitude = 195.80;
+  if(SerialGPS.available() > 0){
+    gps.encode(SerialGPS.read());
+
+    if(gps.location.isValid()){
+      package.gps_latitude = gps.location.lat();    
+      package.gps_longitude = gps.location.lng();
+    }
+
+    if(gps.altitude.isValid()){
+      package.gps_altitude = gps.altitude.meters();
+    }
+  }
 }
 
 void GetDHT11() {
