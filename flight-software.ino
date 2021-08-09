@@ -76,7 +76,7 @@ DHT dht(DHT11_PIN, DHT11);
 
 //start - servo
 const int SERVO_PIN = 18;
-Servo myservo; 
+Servo myservo;
 //end - servo
 
 //start - gps
@@ -87,7 +87,6 @@ SoftwareSerial SerialGPS(RXPin, TXPin);
 //end - gps
 
 //functions
-void ReadEEPROM(void);
 void initWifi(void);
 void initMpu6050(void);
 void initBuzzer(void);
@@ -95,7 +94,7 @@ void initBmp180(void);
 void initMax471(void);
 void initServo(void);
 void initGps(void);
-void initSdCard(void)
+void initSdCard(void);
 
 void initWifi() {
   Serial.println("Connecting to Wifi");
@@ -143,31 +142,31 @@ void initBmp180() {
   Serial.println("Bmp180 connected!");
 }
 
-void initBuzzer(){
+void initBuzzer() {
   pinMode(BUZZER_PIN, OUTPUT);
 }
 
-void initMax471(){
+void initMax471() {
   pinMode(MAX471_PIN, INPUT);
 }
 
-void initDht11(){
+void initDht11() {
   Serial.println("Connecting to Dht11");
 
   dht.begin();
   Serial.println("Dht11 connected!");
 }
 
-void initServo(){
+void initServo() {
   ESP32PWM::allocateTimer(0);
-	ESP32PWM::allocateTimer(1);
-	ESP32PWM::allocateTimer(2);
-	ESP32PWM::allocateTimer(3);
-	myservo.setPeriodHertz(50);
-	myservo.attach(SERVO_PIN, 500, 2400);
+  ESP32PWM::allocateTimer(1);
+  ESP32PWM::allocateTimer(2);
+  ESP32PWM::allocateTimer(3);
+  myservo.setPeriodHertz(50);
+  myservo.attach(SERVO_PIN, 500, 2400);
 }
 
-void initGps(){
+void initGps() {
   Serial.println("Connecting to Gps");
 
   SerialGPS.begin(GPSBaud);
@@ -182,16 +181,16 @@ void initGps(){
   Serial.println("Satellite connected!");
 }
 
-void initSdCard(){
+void initSdCard() {
   Serial.println("Connecting to SD Card Module");
 
-  if(!SD.begin()){
+  if (!SD.begin()) {
     Serial.println("Card Mount Failed");
   }
   Serial.println("SD Card Module connected!");
-  
+
   uint8_t cardType = SD.cardType();
-  if(cardType == CARD_NONE){
+  if (cardType == CARD_NONE) {
     Serial.println("No SD card attached");
   }
 }
@@ -411,7 +410,7 @@ void SendData(String httpRequestData) {
   }
 }
 
-void PrepareData() {
+String PrepareData() {
   DynamicJsonDocument readings(512);
   readings["TeamNumber"] = String(package.team_no);
   readings["PackageNumber"] = String(package.package_number);
@@ -433,21 +432,21 @@ void PrepareData() {
   String httpRequestData;
   serializeJson(readings, httpRequestData);
   Serial.println(httpRequestData);
-  
+
   return httpRequestData;
 }
 
-void writeSdCard(fs::FS &fs, const char * path, const char * message){
+void writeSdCard(fs::FS &fs, const char * path, String message) {
   Serial.printf("Appending to file: %s\n", path);
 
   File file = fs.open(path, FILE_APPEND);
-  if(!file){
+  if (!file) {
     Serial.println("Failed to open file for appending");
     return;
   }
-  if(file.print(message)){
+  if (file.print(message)) {
     Serial.println("Message appended");
-  } 
+  }
   else {
     Serial.println("Append failed");
   }
@@ -455,21 +454,21 @@ void writeSdCard(fs::FS &fs, const char * path, const char * message){
 }
 
 void GetMax471() {
-  int raw_value = analogRead(MAX471_PIN); 
-  float current = (raw_value * 5.0 )/ 1024.0;
+  int raw_value = analogRead(MAX471_PIN);
+  float current = (raw_value * 5.0 ) / 1024.0;
   package.battery_voltage = current;
 }
 
 void GetGPS() {
-  if(SerialGPS.available() > 0){
+  if (SerialGPS.available() > 0) {
     gps.encode(SerialGPS.read());
 
-    if(gps.location.isValid()){
-      package.gps_latitude = gps.location.lat();    
+    if (gps.location.isValid()) {
+      package.gps_latitude = gps.location.lat();
       package.gps_longitude = gps.location.lng();
     }
 
-    if(gps.altitude.isValid()){
+    if (gps.altitude.isValid()) {
       package.gps_altitude = gps.altitude.meters();
     }
   }
@@ -479,7 +478,7 @@ void GetDHT11() {
   //degC
   float temperature = dht.readTemperature();
 
-  if(!isnan(temperature)){
+  if (!isnan(temperature)) {
     package.temperature = temperature;
   }
 }
@@ -509,10 +508,10 @@ void GetMpu6050() {
 void GetBmp180() {
   //degC
   //package.temperature = bmp.readTemperature();
-  
+
   //Pa
   package.pressure = bmp.readPressure();
-    
+
   //meters
   package.altitude = bmp.readAltitude();
 
@@ -523,10 +522,10 @@ void GetBmp180() {
   //Serial.print(bmp.readSealevelPressure());
 }
 
-void startBuzzer(){
+void startBuzzer() {
   digitalWrite(BUZZER_PIN, HIGH);
 }
 
-void startSeperation(){
+void startSeperation() {
   myservo.write(180);
 }
