@@ -10,6 +10,9 @@
 #include <ESP32Servo.h>
 #include <TinyGPS++.h>
 #include <SoftwareSerial.h>
+#include "FS.h"
+#include "SD.h"
+#include "SPI.h"
 
 //start - wifi config
 const char *ssid = "TurkTelekom_T5AA1";
@@ -92,6 +95,7 @@ void initBmp180(void);
 void initMax471(void);
 void initServo(void);
 void initGps(void);
+void initSdCard(void)
 
 void initWifi() {
   Serial.println("Connecting to Wifi");
@@ -178,6 +182,20 @@ void initGps(){
   Serial.println("Satellite connected!");
 }
 
+void initSdCard(){
+  Serial.println("Connecting to SD Card Module");
+
+  if(!SD.begin()){
+    Serial.println("Card Mount Failed");
+  }
+  Serial.println("SD Card Module connected!");
+  
+  uint8_t cardType = SD.cardType();
+  if(cardType == CARD_NONE){
+    Serial.println("No SD card attached");
+  }
+}
+
 void setup() {
   Serial.begin(115200);
   delay(100);
@@ -189,6 +207,7 @@ void setup() {
   initDht11();
   initServo();
   initGps();
+  initSdCard();
 
   EEPROM.begin(512);
 }
@@ -199,8 +218,9 @@ void loop() {
   SatelliteControl();
   SatelliteStateCalculate();
   writeEEPROM();
-  //writeSdCard();
-  SendData();
+  String data = PrepareData();
+  writeSdCard(SD, "/telemetries.txt", data);
+  SendData(data);
   //ReadIncomingData();
   delay(3000);
 }
@@ -374,36 +394,13 @@ void writeEEPROM() {
   EEPROM.commit();
 }
 
-void SendData() {
+void SendData(String httpRequestData) {
   if (WiFi.status() == WL_CONNECTED) {
     //WiFiClient client;
     //HTTPClient http;
 
     //http.begin(client, serverName);
     //http.addHeader("Content-Type", "application/json");
-
-    DynamicJsonDocument readings(512);
-    readings["TeamNumber"] = String(package.team_no);
-    readings["PackageNumber"] = String(package.package_number);
-    readings["TurnsNumber"] = String(package.turns_number);
-    readings["Altitude"] = String(package.altitude);
-    readings["Acceleration"] = String(package.acceleration);
-    readings["Temperature"] = String(package.temperature);
-    readings["Battery_Voltage"] = String(package.battery_voltage);
-    readings["Pitch"] = String(package.pitch);
-    readings["Roll"] = String(package.roll);
-    readings["Yaw"] = String(package.yaw);
-    readings["Pressure"] = String(package.pressure);
-    readings["GpsLatitude"] = String(package.gps_latitude);
-    readings["GpsLongitude"] = String(package.gps_longitude);
-    readings["GpsAltitude"] = String(package.gps_altitude);
-    readings["SatelliteStatus"] = String(package.satellite_status);
-    readings["VideoStatus"] = String(package.video_status);
-
-    String httpRequestData;
-    serializeJson(readings, httpRequestData);
-    Serial.println(httpRequestData);
-    Serial.print(",");
 
     //int httpResponseCode = http.POST(httpRequestData);
     //Serial.println("HTTP Response code: " + httpResponseCode);
@@ -412,6 +409,49 @@ void SendData() {
   } else {
     Serial.println("WiFi Disconnected");
   }
+}
+
+void PrepareData() {
+  DynamicJsonDocument readings(512);
+  readings["TeamNumber"] = String(package.team_no);
+  readings["PackageNumber"] = String(package.package_number);
+  readings["TurnsNumber"] = String(package.turns_number);
+  readings["Altitude"] = String(package.altitude);
+  readings["Acceleration"] = String(package.acceleration);
+  readings["Temperature"] = String(package.temperature);
+  readings["Battery_Voltage"] = String(package.battery_voltage);
+  readings["Pitch"] = String(package.pitch);
+  readings["Roll"] = String(package.roll);
+  readings["Yaw"] = String(package.yaw);
+  readings["Pressure"] = String(package.pressure);
+  readings["GpsLatitude"] = String(package.gps_latitude);
+  readings["GpsLongitude"] = String(package.gps_longitude);
+  readings["GpsAltitude"] = String(package.gps_altitude);
+  readings["SatelliteStatus"] = String(package.satellite_status);
+  readings["VideoStatus"] = String(package.video_status);
+
+  String httpRequestData;
+  serializeJson(readings, httpRequestData);
+  Serial.println(httpRequestData);
+  
+  return httpRequestData;
+}
+
+void writeSdCard(fs::FS &fs, const char * path, const char * message){
+  Serial.printf("Appending to file: %s\n", path);
+
+  File file = fs.open(path, FILE_APPEND);
+  if(!file){
+    Serial.println("Failed to open file for appending");
+    return;
+  }
+  if(file.print(message)){
+    Serial.println("Message appended");
+  } 
+  else {
+    Serial.println("Append failed");
+  }
+  file.close();
 }
 
 void GetMax471() {
