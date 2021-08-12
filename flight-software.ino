@@ -27,11 +27,11 @@ IPAddress secondaryDNS(8, 8, 4, 4);
 
 //start - send package
 typedef struct package_structure {
-  unsigned int team_no = 42489, package_number, turns_number = 0;
-  float altitude = 0, acceleration, temperature, battery_voltage, pitch, roll, yaw;
-  double pressure, gps_latitude, gps_longitude, gps_altitude;
+  unsigned short int package_number, turns_number = 0;
+  float altitude = 0, acceleration, temperature, battery_voltage, pitch, roll, yaw, pressure;
+  double gps_latitude, gps_longitude, gps_altitude;
   bool video_status = 0;
-  String satellite_status = "Landing";
+  String team_no = "42489", satellite_status = "Landing";
 } package_type;
 
 package_type package;
@@ -39,19 +39,19 @@ package_type *pck;
 //end - send package
 
 //start - eeprom
-const int adres_paket_numarasi = 0;
-const int adres_durum = 10;
-const int adres_donus_sayisi = 20;
-const int adres_video_durumu = 30;
-const int adres_restart_durumu = 40;
-const int adres_t1_sayaci = 50;
-const int adres_t3_sayaci = 60;
+const unsigned short int adres_paket_numarasi = 0;
+const unsigned short int adres_durum = 10;
+const unsigned short int adres_donus_sayisi = 20;
+const unsigned short int adres_video_durumu = 30;
+const unsigned short int adres_restart_durumu = 40;
+const unsigned short int adres_t1_sayaci = 50;
+const unsigned short int adres_t3_sayaci = 60;
 unsigned long t1 = 0, t2 = 0, t3 = 0, t4 = 0;
 //end - eeprom
 
-short int status, restart_flag;
+unsigned short int status, restart_flag;
 
-const char *serverName = "http://192.168.1.106:5000/Home/GetSensor";
+const char *serverName = "http://192.168.1.108:5000/Telemetry";
 
 //start - mpu650
 Adafruit_MPU6050 mpu;
@@ -62,26 +62,26 @@ Adafruit_BMP085 bmp;
 //end - bmp180
 
 //start - buzzer
-const int BUZZER_PIN = 21;
+const unsigned short int BUZZER_PIN = 21;
 //end - buzzer
 
 //start - max471
-const int MAX471_PIN = 34;
+const unsigned short int MAX471_PIN = 34;
 //end - max471
 
 //start - dht11
-const int DHT11_PIN = 13;
+const unsigned short int DHT11_PIN = 13;
 DHT dht(DHT11_PIN, DHT11);
 //end - dht11
 
 //start - servo
-const int SERVO_PIN = 18;
+const unsigned short int SERVO_PIN = 18;
 Servo myservo;
 //end - servo
 
 //start - gps
-const int RXPin = 16, TXPin = 17;
-const uint32_t GPSBaud = 9600;
+const unsigned short int RXPin = 16, TXPin = 17;
+const unsigned short int GPSBaud = 9600;
 TinyGPSPlus gps;
 SoftwareSerial SerialGPS(RXPin, TXPin);
 //end - gps
@@ -395,16 +395,16 @@ void writeEEPROM() {
 
 void SendData(String httpRequestData) {
   if (WiFi.status() == WL_CONNECTED) {
-    //WiFiClient client;
-    //HTTPClient http;
+    WiFiClient client;
+    HTTPClient http;
 
-    //http.begin(client, serverName);
-    //http.addHeader("Content-Type", "application/json");
+    http.begin(client, serverName);
+    http.addHeader("Content-Type", "application/json");
 
-    //int httpResponseCode = http.POST(httpRequestData);
+    int httpResponseCode = http.POST(httpRequestData);
     //Serial.println("HTTP Response code: " + httpResponseCode);
 
-    //http.end();
+    http.end();
   } else {
     Serial.println("WiFi Disconnected");
   }
@@ -412,7 +412,7 @@ void SendData(String httpRequestData) {
 
 String PrepareData() {
   DynamicJsonDocument readings(512);
-  readings["TeamNumber"] = String(package.team_no);
+  readings["TeamNo"] = String(package.team_no);
   readings["PackageNumber"] = String(package.package_number);
   readings["TurnsNumber"] = String(package.turns_number);
   readings["Altitude"] = String(package.altitude);
