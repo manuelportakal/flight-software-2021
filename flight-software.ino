@@ -15,6 +15,7 @@
 #include "SPI.h"
 #include <HTTPClient.h>
 #include "time.h"
+#include "ESPAsyncWebServer.h"
 
 //start - wifi config
 const char *ssid = "TurkTelekom_T5AA1";
@@ -56,6 +57,8 @@ unsigned short int status, restart_flag;
 
 const char *serverName = "http://192.168.1.108:5000/Telemetry";
 
+const String seperationPass = "seperation12345";
+
 //start - mpu650
 Adafruit_MPU6050 mpu;
 //end - mpu650
@@ -96,7 +99,15 @@ const int   daylightOffset_sec = 3600;
 struct tm timeinfo;
 //end - rtc
 
+//start - webserver
+AsyncWebServer server(80);
+//end - webserver
+
 //functions
+void handleUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final);
+void startSeperation(void);
+
+//init functions
 void initWifi(void);
 void initMpu6050(void);
 void initBuzzer(void);
@@ -106,6 +117,22 @@ void initServo(void);
 void initGps(void);
 void initSdCard(void);
 void initRtc(void);
+void initWebServer(void);
+
+void handleUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final){
+  if(!index){
+    Serial.printf("UploadStart: %s\n", filename.c_str());
+  }
+    File file = SD.open(filename.c_str(), FILE_APPEND);
+  //appendFile(SD, "/temp.jpg", *data);
+  for(size_t i=0; i<len; i++){
+    file.write(data[i]);
+  }
+     file.close();
+  if(final){
+    Serial.printf("UploadEnd: %s, %u B\n", filename.c_str(), index+len);
+  }
+}
 
 void initWifi() {
   Serial.println("Connecting to Wifi");
@@ -210,6 +237,24 @@ void initRtc(){
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 }
 
+void initWebServer(){
+  server.on("/post",HTTP_POST,[](AsyncWebServerRequest * request){},NULL,[](AsyncWebServerRequest * request, uint8_t *data, size_t len, size_t index, size_t total) {
+    String receiveData = String((char *)data);
+
+    if(receiveData.equals(seperationPass)){
+      startSeperation();
+    }
+ 
+    request->send(200);
+  });
+
+  server.on("/upload", HTTP_POST, [](AsyncWebServerRequest *request){
+    request->send(200);
+  }, handleUpload);
+ 
+  server.begin();
+}
+
 void setup() {
   Serial.begin(115200);
   delay(100);
@@ -223,6 +268,7 @@ void setup() {
   initGps();
   initSdCard();
   initRtc();
+  initWebServer();
 
   EEPROM.begin(512);
 }
