@@ -13,6 +13,8 @@
 #include "FS.h"
 #include "SD.h"
 #include "SPI.h"
+#include <HTTPClient.h>
+#include "time.h"
 
 //start - wifi config
 const char *ssid = "TurkTelekom_T5AA1";
@@ -32,6 +34,7 @@ typedef struct package_structure {
   double gps_latitude, gps_longitude, gps_altitude;
   bool video_status = 0;
   String team_no = "42489", satellite_status = "Landing";
+  char mission_time[32];
 } package_type;
 
 package_type package;
@@ -86,6 +89,13 @@ TinyGPSPlus gps;
 SoftwareSerial SerialGPS(RXPin, TXPin);
 //end - gps
 
+//start - rtc
+const char* ntpServer = "pool.ntp.org";
+const long  gmtOffset_sec = 7200;
+const int   daylightOffset_sec = 3600;
+struct tm timeinfo;
+//end - rtc
+
 //functions
 void initWifi(void);
 void initMpu6050(void);
@@ -95,6 +105,7 @@ void initMax471(void);
 void initServo(void);
 void initGps(void);
 void initSdCard(void);
+void initRtc(void);
 
 void initWifi() {
   Serial.println("Connecting to Wifi");
@@ -195,6 +206,10 @@ void initSdCard() {
   }
 }
 
+void initRtc(){
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+}
+
 void setup() {
   Serial.begin(115200);
   delay(100);
@@ -207,6 +222,7 @@ void setup() {
   initServo();
   initGps();
   initSdCard();
+  initRtc();
 
   EEPROM.begin(512);
 }
@@ -266,6 +282,7 @@ void ReadSensorData() {
   GetDHT11();
   GetMpu6050();
   GetBmp180();
+  GetRtc();
 }
 
 void SatelliteControl() {
@@ -428,6 +445,7 @@ String PrepareData() {
   readings["GpsAltitude"] = String(package.gps_altitude);
   readings["SatelliteStatus"] = String(package.satellite_status);
   readings["VideoStatus"] = String(package.video_status);
+  readings["SendTime"] = String(package.mission_time);
 
   String httpRequestData;
   serializeJson(readings, httpRequestData);
@@ -520,6 +538,15 @@ void GetBmp180() {
 
   //Pa
   //Serial.print(bmp.readSealevelPressure());
+}
+
+void GetRtc(){
+  if(!getLocalTime(&timeinfo)){
+    Serial.println("Failed to obtain time");
+    return;
+  }
+  //Serial.println(&package.timeinfo, "%A, %B %d %Y %H:%M:%S");
+  strftime(package.mission_time, sizeof(package.mission_time), "%FT%TZ", &timeinfo);
 }
 
 void startBuzzer() {
