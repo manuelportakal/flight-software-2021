@@ -1,7 +1,12 @@
 //libraries
 #include <WiFi.h>
+#include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <EEPROM.h>
+#include "FS.h"
+#include "SD.h"
+#include "SPI.h"
+#include "time.h"
 
 //start - wifi config
 const char *ssid = "TurkTelekom_T5AA1";
@@ -16,11 +21,12 @@ IPAddress secondaryDNS(8, 8, 4, 4);
 
 //start - send package
 typedef struct package_structure {
-  unsigned int team_no = 42489, package_number, turns_number = 0;
+  unsigned int package_number, turns_number = 0;
   float altitude = 0, acceleration, temperature, battery_voltage, pitch, roll, yaw;
   double pressure, gps_latitude, gps_longitude, gps_altitude;
   bool video_status = 0;
-  String satellite_status = "Landing";
+  String team_no = "42489", satellite_status = "Landing";
+  char mission_time[32];
 } package_type;
 
 package_type package;
@@ -38,13 +44,22 @@ const int adres_t3_sayaci = 60;
 unsigned long t1 = 0, t2 = 0, t3 = 0, t4 = 0;
 //end - eeprom
 
+//start - rtc
+const char* ntpServer = "pool.ntp.org";
+const long  gmtOffset_sec = 7200;
+const int   daylightOffset_sec = 3600;
+struct tm timeinfo;
+//end - rtc
+
 short int status, restart_flag;
 
-const char *serverName = "http://192.168.1.106:5000/Home/GetSensor";
+const char *serverName = "http://192.168.1.108:5000/Telemetry";
 
 //functions
 void ReadEEPROM(void);
 void initWifi(void);
+void initSdCard(void);
+void initRtc(void);
 
 void initWifi() {
   Serial.println("Connecting");
@@ -64,10 +79,30 @@ void initWifi() {
   Serial.println(WiFi.localIP());
 }
 
+void initSdCard(){
+  Serial.println("Connecting to SD Card Module");
+
+  if(!SD.begin()){
+    Serial.println("Card Mount Failed");
+  }
+  Serial.println("SD Card Module connected!");
+  
+  uint8_t cardType = SD.cardType();
+  if(cardType == CARD_NONE){
+    Serial.println("No SD card attached");
+  }
+}
+
+void initRtc(){
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+}
+
 void setup() {
   Serial.begin(115200);
   delay(100);
   initWifi();
+  initSdCard();
+  initRtc();
 
   EEPROM.begin(512);
 }
@@ -78,8 +113,9 @@ void loop() {
   SatelliteControl();
   SatelliteStateCalculate();
   writeEEPROM();
-  //writeSdCard();
-  SendData();
+  String data = PrepareData();
+  writeSdCard(SD, "/telemetries.txt", data);
+  SendData(data);
   //ReadIncomingData();
   delay(3000);
 }
@@ -126,6 +162,7 @@ void ReadSensorData() {
   GetDHT11();
   GetMpu6050();
   GetBmp180();
+  GetRtc();
 }
 
 void SatelliteControl() {
@@ -140,7 +177,7 @@ void SatelliteControl() {
     //otonom ayrilma gerceklesti;
   }
 
-  else if (package.altitude <= 410 && status == 2) {
+  else if (package.altitude <= 410 && package.altitude > 250 && status == 2) {
     //startMotors();
   }
 
@@ -253,47 +290,71 @@ void writeEEPROM() {
   EEPROM.commit();
 }
 
-void SendData() {
+void SendData(String httpRequestData) {
   if (WiFi.status() == WL_CONNECTED) {
-    //WiFiClient client;
-    //HTTPClient http;
+    WiFiClient client;
+    HTTPClient http;
 
-    //http.begin(client, serverName);
-    //http.addHeader("Content-Type", "application/json");
+    http.begin(client, serverName);
+    http.addHeader("Content-Type", "application/json");
 
-    DynamicJsonDocument readings(512);
-    readings["TeamNumber"] = String(package.team_no);
-    readings["PackageNumber"] = String(package.package_number);
-    readings["TurnsNumber"] = String(package.turns_number);
-    readings["Altitude"] = String(package.altitude);
-    readings["Acceleration"] = String(package.acceleration);
-    readings["Temperature"] = String(package.temperature);
-    readings["Battery_Voltage"] = String(package.battery_voltage);
-    readings["Pitch"] = String(package.pitch);
-    readings["Roll"] = String(package.roll);
-    readings["Yaw"] = String(package.yaw);
-    readings["Pressure"] = String(package.pressure);
-    readings["GpsLatitude"] = String(package.gps_latitude);
-    readings["GpsLongitude"] = String(package.gps_longitude);
-    readings["GpsAltitude"] = String(package.gps_altitude);
-    readings["SatelliteStatus"] = String(package.satellite_status);
-    readings["VideoStatus"] = String(package.video_status);
-
-    String httpRequestData;
-    serializeJson(readings, httpRequestData);
     Serial.println(httpRequestData);
 
-    //int httpResponseCode = http.POST(httpRequestData);
+    int httpResponseCode = http.POST(httpRequestData);
     //Serial.println("HTTP Response code: " + httpResponseCode);
 
-    //http.end();
+    http.end();
   } else {
     Serial.println("WiFi Disconnected");
   }
 }
 
+String PrepareData() {
+  DynamicJsonDocument readings(512);
+  readings["TeamNo"] = String(package.team_no);
+  readings["PackageNumber"] = String(package.package_number);
+  readings["TurnsNumber"] = String(package.turns_number);
+  readings["Altitude"] = String(package.altitude);
+  readings["Acceleration"] = String(package.acceleration);
+  readings["Temperature"] = String(package.temperature);
+  readings["Battery_Voltage"] = String(package.battery_voltage);
+  readings["Pitch"] = String(package.pitch);
+  readings["Roll"] = String(package.roll);
+  readings["Yaw"] = String(package.yaw);
+  readings["Pressure"] = String(package.pressure);
+  readings["GpsLatitude"] = String(package.gps_latitude);
+  readings["GpsLongitude"] = String(package.gps_longitude);
+  readings["GpsAltitude"] = String(package.gps_altitude);
+  readings["SatelliteStatus"] = String(package.satellite_status);
+  readings["VideoStatus"] = String(package.video_status);
+  readings["SendTime"] = String(package.mission_time);
+
+  String httpRequestData;
+  serializeJson(readings, httpRequestData);
+  Serial.println(httpRequestData);
+  
+  return httpRequestData;
+}
+
+void writeSdCard(fs::FS &fs, const char * path, const String message){
+  Serial.printf("Appending to file: %s\n", path);
+
+  File file = fs.open(path, FILE_APPEND);
+  if(!file){
+    Serial.println("Failed to open file for appending");
+    return;
+  }
+  if(file.print(message)){
+    //Serial.println("Message appended");
+  } 
+  else {
+    Serial.println("Append failed");
+  }
+  file.close();
+}
+
 void GetMax471() {
-  package.battery_voltage = random(0, 1000) / 100.0;
+  package.battery_voltage = random(300, 1000) / 100.0;
 }
 
 void GetGPS() {
@@ -310,9 +371,9 @@ void GetDHT11() {
 }
 
 void GetMpu6050() {
-  package.pitch = random(0, 36000) / 100.0;
-  package.roll = random(0, 36000) / 100.0;
-  package.yaw = random(0, 36000) / 100.0;
+  package.pitch = random(-300, 300) / 100.0;
+  package.roll = random(-300, 300) / 100.0;
+  package.yaw = random(-100, 100) / 100.0;
   package.acceleration = random(500, 1000) / 100.0;
 }
 
@@ -322,10 +383,19 @@ void GetBmp180() {
   //irtifa sabitleme pasifken calisir
   if (status != 3) {
     if (package.altitude < 700 && status == 0)
-      package.altitude += 100;
+      package.altitude += 10;
     else if (package.altitude >= 70)
-      package.altitude -= 70;
+      package.altitude -= 7;
     else
       package.altitude = 0;
   }
+}
+
+void GetRtc(){
+  if(!getLocalTime(&timeinfo)){
+    Serial.println("Failed to obtain time");
+    return;
+  }
+  //Serial.println(&package.timeinfo, "%A, %B %d %Y %H:%M:%S");
+  strftime(package.mission_time, sizeof(package.mission_time), "%FT%TZ", &timeinfo);
 }
