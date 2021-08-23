@@ -55,7 +55,7 @@ unsigned long t1 = 0, t2 = 0, t3 = 0, t4 = 0;
 
 unsigned short int status, restart_flag;
 
-const char *serverName = "http://192.168.1.108:5000/Telemetry";
+const char *serverName = "http://192.168.0.106:5000/Telemetry";
 
 const String seperationPass = "seperation12345";
 
@@ -68,22 +68,21 @@ Adafruit_BMP085 bmp;
 //end - bmp180
 
 //start - buzzer
-const unsigned short int BUZZER_PIN = 21;
+const unsigned short int BUZZER_PIN = 27;
 //end - buzzer
 
 //start - max471
 const unsigned short int MAX471_PIN = 34;
 //end - max471
 
-//start - dht11
-const unsigned short int DHT11_PIN = 13;
-DHT dht(DHT11_PIN, DHT11);
-//end - dht11
-
 //start - servo
-const unsigned short int SERVO_PIN = 18;
+const unsigned short int SERVO_PIN = 14;
 Servo myservo;
 //end - servo
+
+//start - sdcard
+const unsigned short int SDCARD_PIN = 5;
+//end - sdcard
 
 //start - gps
 const unsigned short int RXPin = 16, TXPin = 17;
@@ -123,7 +122,7 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
   if(!index){
     Serial.printf("UploadStart: %s\n", filename.c_str());
   }
-    File file = SD.open(filename.c_str(), FILE_APPEND);
+    File file = SD.open("/" + filename, FILE_APPEND);
   //appendFile(SD, "/temp.jpg", *data);
   for(size_t i=0; i<len; i++){
     file.write(data[i]);
@@ -131,6 +130,7 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
      file.close();
   if(final){
     Serial.printf("UploadEnd: %s, %u B\n", filename.c_str(), index+len);
+    package.video_status = 1;
   }
 }
 
@@ -188,13 +188,6 @@ void initMax471() {
   pinMode(MAX471_PIN, INPUT);
 }
 
-void initDht11() {
-  Serial.println("Connecting to Dht11");
-
-  dht.begin();
-  Serial.println("Dht11 connected!");
-}
-
 void initServo() {
   ESP32PWM::allocateTimer(0);
   ESP32PWM::allocateTimer(1);
@@ -202,6 +195,7 @@ void initServo() {
   ESP32PWM::allocateTimer(3);
   myservo.setPeriodHertz(50);
   myservo.attach(SERVO_PIN, 500, 2400);
+  myservo.write(60);
 }
 
 void initGps() {
@@ -222,7 +216,7 @@ void initGps() {
 void initSdCard() {
   Serial.println("Connecting to SD Card Module");
 
-  if (!SD.begin()) {
+  if (!SD.begin(SDCARD_PIN)) {
     Serial.println("Card Mount Failed");
   }
   Serial.println("SD Card Module connected!");
@@ -258,19 +252,18 @@ void initWebServer(){
 void setup() {
   Serial.begin(115200);
   delay(100);
+  EEPROM.begin(512);
+  delay(100);
   initWifi();
   initMpu6050();
   initBuzzer();
   initBmp180();
   initMax471();
-  initDht11();
   initServo();
   initGps();
   initSdCard();
   initRtc();
   initWebServer();
-
-  EEPROM.begin(512);
 }
 
 void loop() {
@@ -282,8 +275,7 @@ void loop() {
   String data = PrepareData();
   writeSdCard(SD, "/telemetries.txt", data);
   SendData(data);
-  //ReadIncomingData();
-  delay(3000);
+  delay(1000);
 }
 
 void ReadEEPROM() {
@@ -325,7 +317,6 @@ void ReadEEPROM() {
 void ReadSensorData() {
   GetMax471();
   GetGPS();
-  GetDHT11();
   GetMpu6050();
   GetBmp180();
   GetRtc();
@@ -501,7 +492,7 @@ String PrepareData() {
 }
 
 void writeSdCard(fs::FS &fs, const char * path, String message) {
-  Serial.printf("Appending to file: %s\n", path);
+  //Serial.printf("Appending to file: %s\n", path);
 
   File file = fs.open(path, FILE_APPEND);
   if (!file) {
@@ -509,7 +500,7 @@ void writeSdCard(fs::FS &fs, const char * path, String message) {
     return;
   }
   if (file.print(message)) {
-    Serial.println("Message appended");
+    //Serial.println("Message appended");
   }
   else {
     Serial.println("Append failed");
@@ -538,15 +529,6 @@ void GetGPS() {
   }
 }
 
-void GetDHT11() {
-  //degC
-  float temperature = dht.readTemperature();
-
-  if (!isnan(temperature)) {
-    package.temperature = temperature;
-  }
-}
-
 void GetMpu6050() {
   // package.pitch = random(0, 36000) / 100.0;
   // package.roll = random(0, 36000) / 100.0;
@@ -571,7 +553,7 @@ void GetMpu6050() {
 
 void GetBmp180() {
   //degC
-  //package.temperature = bmp.readTemperature();
+  package.temperature = bmp.readTemperature();
 
   //Pa
   package.pressure = bmp.readPressure();
@@ -600,5 +582,5 @@ void startBuzzer() {
 }
 
 void startSeperation() {
-  myservo.write(180);
+  myservo.write(0);
 }
